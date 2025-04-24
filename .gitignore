@@ -12,3 +12,4 @@ model_data/data_set_4.csv
 data_prep_and_analysis/Analysis.txt
 models/trainer_output/
 models/embeds/GoogleNews-vectors-negative300.bin.gz
+models/embeds.zip
