@@ -20,7 +20,7 @@ def read_data(filename,samp_size):
 
     df = pd.read_csv(path)
     if int(len(df) * samp_size) <= 5000:
-        df = df.sample(n=int(len(df) * samp_size))
+        df = df.sample(n=int(len(df) * samp_size),random_state= 33)
     else:
         df = df.sample(n=5000)  
    
@@ -31,7 +31,7 @@ def read_data(filename,samp_size):
 def encode_Test_Lables(label):
     return int(label-1)
 
-def run_model(filename,samp_size,max_df,min_df,l2,gamma,max_depth):
+def run_model(filename,samp_size,max_df,min_df,l2,lr,eta):
     df = read_data(filename,samp_size)
 
     device = "cpu"
@@ -45,7 +45,7 @@ def run_model(filename,samp_size,max_df,min_df,l2,gamma,max_depth):
     y = df["Rating"].apply(encode_Test_Lables)
 
     # create model instance
-    bst = XGBClassifier(n_estimators = 20,learning_rate = .001, booster = 'gblinear', max_depth = max_depth, gamma = gamma, reg_lambda = l2,objective='multi:softmax',device = device)
+    bst = XGBClassifier(n_estimators = 20,reg_lambda = l2, eta = eta, learning_rate = lr, booster = 'gblinear', objective='multi:softmax',device = device, random_state = 50)
 
     #Set folds and Scoring
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
@@ -64,7 +64,7 @@ def run_model(filename,samp_size,max_df,min_df,l2,gamma,max_depth):
 
 
 
-def run_Experiment(filename,samp_size,max_df,min_df,l2,gamma,max_depth):
+def run_Experiment(filename,samp_size,max_df,min_df,l2,lr,eta):
     df = read_data(filename,samp_size)
 
     device = "cpu"
@@ -78,11 +78,11 @@ def run_Experiment(filename,samp_size,max_df,min_df,l2,gamma,max_depth):
     y = df["Rating"].apply(encode_Test_Lables)
 
     # create model instance
-    bst = XGBClassifier(n_estimators = 20, learning_rate = .001,booster='gblinear',objective='multi:softmax',device = device)
+    bst = XGBClassifier(n_estimators = 20,booster='gblinear',objective='multi:softmax',device = device, random_state = 50)
     paramaters = {
-        'gamma': gamma,
         'reg_lambda': l2,
-        'max_depth': max_depth
+        'learning_rate': lr,
+        'eta': eta
     }
 
     params = tuning_script.grid_search(bst,paramaters,x,y)

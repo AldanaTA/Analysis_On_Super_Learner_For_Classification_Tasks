@@ -21,9 +21,9 @@ def read_data(filename,samp_size):
 
     df = pd.read_csv(path)
     if int(len(df) * samp_size) <= 5000:
-        df = df.sample(n=int(len(df) * samp_size))
+        df = df.sample(n=int(len(df) * samp_size),random_state= 33)
     else:
-        df = df.sample(n=5000)
+        df = df.sample(n=5000,random_state= 33)
     
     df.reset_index(inplace=True,drop=True)
 
@@ -32,12 +32,12 @@ def read_data(filename,samp_size):
 def encode_Test_Lables(label):
     return int(label-1)
 
-def runModel(filename,samp_size,l2,max_df,min_df):
+def run_model(filename,samp_size,l2,max_df,min_df):
     df = read_data(filename,samp_size)
     vectorizer = TfidfVectorizer(max_df= max_df,min_df= min_df)
     x = vectorizer.fit_transform(df["Review_text"])
     df["Rating"] = df["Rating"].apply(encode_Test_Lables)
-    classifier_svc = SVC(C=l2,class_weight='balanced')
+    classifier_svc = SVC(C=l2,class_weight='balanced',random_state = 50)
 
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
     scoring = {
@@ -53,13 +53,13 @@ def runModel(filename,samp_size,l2,max_df,min_df):
 
 
 
-def runExperiments(filename,samp_size,l2,max_df,min_df):
+def run_experiments(filename,samp_size,l2,max_df,min_df):
     
     df = read_data(filename,samp_size)
     vectorizer = TfidfVectorizer(max_df= max_df,min_df= min_df)
     x = vectorizer.fit_transform(df["Review_text"])
     df["Rating"] = df["Rating"].apply(encode_Test_Lables)
-    classifier_svc = SVC(C=l2,class_weight='balanced')
+    classifier_svc = SVC(C=l2,class_weight='balanced',random_state = 50)
     paramaters = {
         'C' : l2
     }

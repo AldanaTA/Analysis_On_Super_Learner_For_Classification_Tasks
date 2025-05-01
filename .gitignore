@@ -27,3 +27,6 @@ models/__pycache__/tuning_script.cpython-311.pyc
 Scripts/__pycache__/svm_script.cpython-311.pyc
 Scripts/__pycache__/tuning_script.cpython-311.pyc
 Scripts/__pycache__/xg_boost_script.cpython-311.pyc
+embeds/GoogleNews-vectors-negative300.bin.gz
+embeds/info.txt
+Scripts/__pycache__/rnn_scripts.cpython-311.pyc

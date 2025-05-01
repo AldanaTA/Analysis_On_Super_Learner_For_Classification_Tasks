@@ -97,7 +97,7 @@ def prep_data(filename,samp_size,embeds,min_df,max_df):
       samp_size = .1
 
     if int(len(df) * samp_size) <= 5000:
-        df = df.sample(n=int(len(df) * samp_size))
+        df = df.sample(n=int(len(df) * samp_size), random_state= 33)
     else:
         df = df.sample(n=5000)
 
@@ -147,9 +147,8 @@ class RNNClassifier(torch.nn.Module):
             out = out.detach()
         return out
 
-def run_experiments(filename,sample_size,min_df,max_df,lr,momentum,weight_decay,b_size):
-    current_dir = os.getcwd() + '//embeds//'
-    embeddings = KeyedVectors.load_word2vec_format(current_dir+'GoogleNews-vectors-negative300.bin.gz',binary=True)
+def run_experiments(filename,sample_size,embeddings,min_df,max_df,lr,weight_decay,momentum):
+   
     filename = "data_set_1.csv"
     X_data,Y_data,embeddings = prep_data(filename,sample_size,embeddings,min_df,max_df)
     embeddings = get_embeddings(embeddings)
@@ -184,32 +183,33 @@ def run_experiments(filename,sample_size,min_df,max_df,lr,momentum,weight_decay,
         'optimizer__weight_decay': weight_decay,
         'optimizer__lr': lr,
         'optimizer__momentum' : momentum,
-        "batch_size": b_size
         
     }
 
     params = tuning_script.grid_search(net,parameters,X_data,Y_data)
     return params
     
-def run_model(filename,device,sample_size,min_df,max_df,lr,decay,momentum):
+def run_model(filename,sample_size,embeddings,min_df,max_df,lr,decay,momentum):
     f_loss = []
     acc = []
     precision = []
     f1 = []
     recall = []
-    #Getting Embeddings
-    current_dir = os.getcwd() + '//embeds//'
-    embeddings = KeyedVectors.load_word2vec_format(current_dir+'GoogleNews-vectors-negative300.bin.gz',binary=True)
+    device = "cpu"
+    #gpu_available = torch.cuda.is_available()
+    #if gpu_available:
+        #device = 'cuda'
 
     #Reading Data
     filename = "data_set_1.csv"
     X_data,Y_data,embeddings = prep_data(filename,sample_size,embeddings,min_df,max_df)
     embeddings = get_embeddings(embeddings)
     vocab_size = len(embeddings)
-    embeddings = get_embeddings()
 
     #Setting embeddings
     model = RNNClassifier(embeddings=embeddings,vocabSize=vocab_size,device=device)
+    model.to(device)
+
     kfold = KFold(shuffle=True)
     for fold, (train_ids, test_ids) in enumerate(kfold.split(X_data,Y_data)):
         print(f"FOLD {fold+1}")
@@ -218,7 +218,7 @@ def run_model(filename,device,sample_size,min_df,max_df,lr,decay,momentum):
         train_y = Y_data.iloc[train_ids].astype(int).apply(encode_Train_Lables).to_numpy()
 
         val_x = X_data[test_ids]
-        val_y = Y_data.iloc[test_ids].apply(encode_Test_Lables).to_numpy()
+        val_y = Y_data.iloc[test_ids].to_numpy()
         
         train_y = np.stack(train_y)
       
