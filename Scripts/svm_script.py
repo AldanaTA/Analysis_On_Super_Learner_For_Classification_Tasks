@@ -32,7 +32,6 @@ def read_data(filename,samp_size):
 def encode_Test_Lables(label):
     return int(label-1)
 
-
 def runModel(filename,samp_size,l2,max_df,min_df):
     df = read_data(filename,samp_size)
     vectorizer = TfidfVectorizer(max_df= max_df,min_df= min_df)

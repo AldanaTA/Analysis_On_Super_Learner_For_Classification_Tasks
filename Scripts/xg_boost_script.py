@@ -31,7 +31,7 @@ def read_data(filename,samp_size):
 def encode_Test_Lables(label):
     return int(label-1)
 
-def runModel(filename,samp_size,estimators,lr,l2):
+def run_model(filename,samp_size,max_df,min_df,l2,gamma,max_depth):
     df = read_data(filename,samp_size)
 
     device = "cpu"
@@ -40,12 +40,12 @@ def runModel(filename,samp_size,estimators,lr,l2):
         device = 'cuda'
 
     # Convert text data into numerical features using TF-IDF
-    vectorizer = TfidfVectorizer(max_df=.95,min_df=.0125)
+    vectorizer = TfidfVectorizer(max_df=max_df,min_df=min_df)
     x = vectorizer.fit_transform(df["Review_text"])
     y = df["Rating"].apply(encode_Test_Lables)
 
     # create model instance
-    bst = XGBClassifier(n_estimators = estimators,learing_rate = lr, reg_delta = l2,booster='gblinear',objective='multi:softmax',device = device)
+    bst = XGBClassifier(n_estimators = 20,learning_rate = .001, booster = 'gblinear', max_depth = max_depth, gamma = gamma, reg_lambda = l2,objective='multi:softmax',device = device)
 
     #Set folds and Scoring
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
@@ -64,7 +64,7 @@ def runModel(filename,samp_size,estimators,lr,l2):
 
 
 
-def run_Experiment(filename,samp_size,estimators,lr,l2,max_df,min_df):
+def run_Experiment(filename,samp_size,max_df,min_df,l2,gamma,max_depth):
     df = read_data(filename,samp_size)
 
     device = "cpu"
@@ -78,11 +78,11 @@ def run_Experiment(filename,samp_size,estimators,lr,l2,max_df,min_df):
     y = df["Rating"].apply(encode_Test_Lables)
 
     # create model instance
-    bst = XGBClassifier(n_estimators = 5,reg_lambda = .01, learning_rate = .003,booster='gblinear',objective='multi:softmax',device = device)
+    bst = XGBClassifier(n_estimators = 20, learning_rate = .001,booster='gblinear',objective='multi:softmax',device = device)
     paramaters = {
-        "n_estimators" : estimators,
-        "learning_rate": lr,
-        "reg_lambda": l2,
+        'gamma': gamma,
+        'reg_lambda': l2,
+        'max_depth': max_depth
     }
 
     params = tuning_script.grid_search(bst,paramaters,x,y)

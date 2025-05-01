@@ -24,3 +24,6 @@ requirements.txt
 requirements.txt
 models/Roberta_Predictions.csv
 models/__pycache__/tuning_script.cpython-311.pyc
+Scripts/__pycache__/svm_script.cpython-311.pyc
+Scripts/__pycache__/tuning_script.cpython-311.pyc
+Scripts/__pycache__/xg_boost_script.cpython-311.pyc
