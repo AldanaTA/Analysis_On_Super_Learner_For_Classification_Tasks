@@ -10,23 +10,28 @@ import tuning_script
 
 
 def read_data(filename,samp_size):
+     #reading Data
     current_dir = os.getcwd()
     parent_dir = os.path.dirname(current_dir)
     path = parent_dir +"/model_data/" + filename
-    #Sampling data
-    if samp_size > 1:
-        samp_size = 1
-    if samp_size <=0:
-      samp_size = .1
-
     df = pd.read_csv(path)
-    if int(len(df) * samp_size) <= 5000:
-        df = df.sample(n=int(len(df) * samp_size),random_state= 33)
+  #Sampling data
+    if type(samp_size) is float:
+        if samp_size <=0:
+            samp_size = .1 
+        n = int(len(df) * samp_size)
+        if n > len(df):
+            print('sample size must be less than or equal to input size set sample to 4000')
+            n = 4000
     else:
-        df = df.sample(n=5000,random_state= 33)
-    
-    df.reset_index(inplace=True,drop=True)
-
+        if samp_size > 1 and len(df) >= samp_size:
+            n = samp_size
+        else:
+            print('sample size must be less than or equal to input size set sample to 4000')
+            n = 4000
+        
+    df = df.sample(n = n)
+    df.reset_index(inplace=True, drop= True)
     return df
 
 def encode_Test_Lables(label):
@@ -42,9 +47,9 @@ def run_model(filename,samp_size,l2,max_df,min_df):
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
     scoring = {
     'accuracy': make_scorer(accuracy_score),
-    'precision': make_scorer(precision_score,average="micro",zero_division=0.0),
-    'recall': make_scorer(recall_score,average="micro",zero_division=0.0),
-    'f1_score': make_scorer(f1_score,average="micro",zero_division=0.0)
+    'precision': make_scorer(precision_score,average="macro",zero_division=0.0),
+    'recall': make_scorer(recall_score,average="macro",zero_division=0.0),
+    'f1_score': make_scorer(f1_score,average="macro",zero_division=0.0)
     }
     
     cv_results = cross_validate(classifier_svc, x, df["Rating"].astype(int), cv=kf, scoring=scoring)

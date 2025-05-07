@@ -1,15 +1,12 @@
 
 import torch
-from torch.utils.data import DataLoader, TensorDataset, Subset
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold,cross_validate
 from skorch import NeuralNetClassifier
-from sklearn.metrics import precision_recall_fscore_support,accuracy_score,classification_report
+from sklearn.metrics import make_scorer,accuracy_score, precision_score, recall_score, f1_score
 import os
 import pandas as pd
-import gc
 import numpy as np
-from gensim.models import KeyedVectors
 import tuning_script
 
 
@@ -24,17 +21,6 @@ def get_embeddings(wv_objs):
     for objs in wv_objs.values():
         temp.append(objs.vector)
     return np.array(temp)
-
-def getMetrics(targets,preds):
-
-    precision, recall, f1, _ = precision_recall_fscore_support(targets, preds, average='micro',zero_division=0.0)
-    acc = accuracy_score(targets, preds)
-    return {
-        'accuracy': acc,
-        'f1': f1,
-        'precision': precision,
-        'recall': recall
-    }
 
 def encode_Test_Lables(label):
     return int(label-1)
@@ -89,19 +75,23 @@ def prep_data(filename,samp_size,embeds,min_df,max_df):
     parent_dir = os.path.dirname(current_dir)
     path = parent_dir +"/model_data/" + filename
     df = pd.read_csv(path)
-
-    #Sampling data
-    if samp_size > 1:
-        samp_size = 1
-    if samp_size <=0.1:
-      samp_size = .1
-
-    if int(len(df) * samp_size) <= 5000:
-        df = df.sample(n=int(len(df) * samp_size), random_state= 33)
+  #Sampling data
+    if type(samp_size) is float:
+        if samp_size <=0:
+            samp_size = .1 
+        n = int(len(df) * samp_size)
+        if n > len(df):
+            print('sample size must be less than or equal to input size set sample to 4000')
+            n = 4000
     else:
-        df = df.sample(n=5000)
-
-    df.reset_index(inplace=True,drop=True)
+        if samp_size > 1 and len(df) >= samp_size:
+            n = samp_size
+        else:
+            print('sample size must be less than or equal to input size set sample to 4000')
+            n = 4000
+        
+    df = df.sample(n = n)
+    df.reset_index(inplace=True, drop= True)
     #preping features
     vectorizer = TfidfVectorizer(min_df=min_df,max_df=max_df)
     corpus = vectorizer.fit(df["Review_text"]).get_feature_names_out()
@@ -147,9 +137,7 @@ class RNNClassifier(torch.nn.Module):
             out = out.detach()
         return out
 
-def run_experiments(filename,sample_size,embeddings,min_df,max_df,lr,weight_decay,momentum):
-   
-    filename = "data_set_1.csv"
+def run_experiments(filename,sample_size,embeddings,min_df,max_df,lr,weight_decay):
     X_data,Y_data,embeddings = prep_data(filename,sample_size,embeddings,min_df,max_df)
     embeddings = get_embeddings(embeddings)
     vocab_size = len(embeddings)
@@ -165,12 +153,11 @@ def run_experiments(filename,sample_size,embeddings,min_df,max_df,lr,weight_deca
     net = NeuralNetClassifier(
     module = model,
     criterion= torch.nn.CrossEntropyLoss,
-    optimizer = torch.optim.SGD,
+    optimizer = torch.optim.Adam,
     module__embeddings=embeddings,
     module__vocabSize=vocab_size,
     optimizer__weight_decay = .01,
     optimizer__lr = .001,
-    optimizer__momentum = .001,
     batch_size = 8,
     max_epochs=5,
     # Shuffle training data on each epoch
@@ -182,123 +169,51 @@ def run_experiments(filename,sample_size,embeddings,min_df,max_df,lr,weight_deca
     parameters = {
         'optimizer__weight_decay': weight_decay,
         'optimizer__lr': lr,
-        'optimizer__momentum' : momentum,
         
     }
 
     params = tuning_script.grid_search(net,parameters,X_data,Y_data)
     return params
     
-def run_model(filename,sample_size,embeddings,min_df,max_df,lr,decay,momentum):
-    f_loss = []
-    acc = []
-    precision = []
-    f1 = []
-    recall = []
-    device = "cpu"
-    #gpu_available = torch.cuda.is_available()
-    #if gpu_available:
-        #device = 'cuda'
-
-    #Reading Data
-    filename = "data_set_1.csv"
+def run_model(filename,sample_size,embeddings,min_df,max_df,lr,decay):
     X_data,Y_data,embeddings = prep_data(filename,sample_size,embeddings,min_df,max_df)
     embeddings = get_embeddings(embeddings)
     vocab_size = len(embeddings)
 
-    #Setting embeddings
+    device = "cpu"
+    gpu_available = torch.cuda.is_available()
+    if gpu_available:
+        device = 'cuda'
     model = RNNClassifier(embeddings=embeddings,vocabSize=vocab_size,device=device)
+
     model.to(device)
+    #setting paramaters
+    net = NeuralNetClassifier(
+    module = model,
+    criterion= torch.nn.CrossEntropyLoss,
+    optimizer = torch.optim.Adam,
+    module__embeddings=embeddings,
+    module__vocabSize=vocab_size,
+    optimizer__weight_decay = decay,
+    optimizer__lr = lr,
+    batch_size = 8,
+    max_epochs=5,
+    # Shuffle training data on each epoch
+    iterator_train__shuffle=True,
 
-    kfold = KFold(shuffle=True)
-    for fold, (train_ids, test_ids) in enumerate(kfold.split(X_data,Y_data)):
-        print(f"FOLD {fold+1}")
+    )
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    scoring = {
+    'accuracy': make_scorer(accuracy_score),
+    'precision': make_scorer(precision_score,average="macro",zero_division=0.0),
+    'recall': make_scorer(recall_score,average="macro",zero_division=0.0),
+    'f1_score': make_scorer(f1_score,average="macro",zero_division=0.0)
+    }
+    
+    #run model
+    cv_results = cross_validate(net, X_data, Y_data, cv=kf, scoring=scoring)
 
-        train_x = X_data[train_ids]
-        train_y = Y_data.iloc[train_ids].astype(int).apply(encode_Train_Lables).to_numpy()
+    #print results
+    print("Model Accuracy: {0:.2%} Precision: {1:.4f} Recall: {2:.4f} F1 Score: {3:.4f}".format(np.mean(cv_results['test_accuracy']),np.mean(cv_results['test_f1_score']),np.mean(cv_results['test_precision']),np.mean(cv_results['test_recall']))) 
 
-        val_x = X_data[test_ids]
-        val_y = Y_data.iloc[test_ids].to_numpy()
-        
-        train_y = np.stack(train_y)
-      
-        train_x = train_x.astype(np.int32)
-        
-        val_x = val_x.astype(np.int32)
-
-        
-        
-        train_dataset = TensorDataset(torch.from_numpy(train_x),torch.from_numpy(train_y))
-        train_dataloader = DataLoader(train_dataset, batch_size=8, shuffle=True,pin_memory=True,num_workers=4)
-
-        val_dataset = TensorDataset(torch.from_numpy(val_x),torch.from_numpy(val_y))
-        val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=True,pin_memory=True,num_workers=4)
-        criterion = torch.nn.CrossEntropyLoss()
-        optimizer = torch.optim.SGD(model.parameters(), lr=lr,weight_decay=decay,momentum=momentum)
-
-        #Training Loop
-        for epoch in range(5):
-            
-            for text,lables in train_dataloader:
-                text = text.to(device)
-                lables = lables.to(device)
-
-                optimizer.zero_grad()
-        
-                yhat = model(text)
-                loss = criterion(yhat,lables)
-                loss.backward()
-                optimizer.step()
-        #Results
-        with torch.no_grad():
-            totalLoss = 0
-            preds = []
-            targets = []
-            for text,lables in val_dataloader:
-       
-                text = text.to(device)
-                lables = lables.to(device)
-        
-                yhat = model(text)
-
-                loss = criterion(yhat,lables)
-
-                yhat = yhat.cpu()
-                lables = lables.cpu()
-                
-                preds.extend(torch.argmax(yhat,dim=1).numpy())
-                targets.extend(lables.numpy())
-                totalLoss+=loss.item()
-            results = getMetrics(targets,preds)
-            acc.append(results['accuracy'])
-            precision.append(results['precision'])
-            f1.append(results['f1'])
-            recall.append(results['recall'])
-            f_loss.append(totalLoss/len(val_dataloader))
-            print("Avg Total Loss: {0:.2f}".format(totalLoss/len(val_dataloader)))
-            print(classification_report(targets,preds,zero_division=0.0))
-    acc = np.array(acc)
-    precision = np.array(precision)
-    f1 = np.array(f1)
-    recall = np.array(recall)
-    f_loss = np.array(f_loss)
-
-    print("Model Loss: {0:.4f} Accuracy {1:.2%} Precision: {2:.4f} Recall: {3:.4f} F1 Score: {4:.4f}".format(np.mean(f_loss),np.mean(acc),np.mean(precision),np.mean(recall),np.mean(f1),))
-
-'''
-
-filename = "data_set_1.csv"
-
-sample_size = 5000
-
-min_df = .001
-max_df = .97
-
-lr = [.01,.05]
-momentum = [.01,.05]
-weight_decay = [.001,.005]
-
-
-run_experiments(filename,sample_size,min_df,max_df,lr,momentum,weight_decay)
-'''
 

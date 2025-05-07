@@ -9,7 +9,7 @@ def grid_search(model,parameters,X,Y):
     'recall': make_scorer(recall_score,average="micro"),
     'f1': make_scorer(f1_score,average="micro")
 }
-    grid_obj = GridSearchCV(model, parameters, scoring=scorers, cv=5,refit='accuracy',verbose=1)
+    grid_obj = GridSearchCV(model, parameters, scoring=scorers, cv=5,refit='f1',verbose=1)
     grid_obj.fit(X,Y)
     print("Best Hyper paramaters: ",grid_obj.best_params_)
     print("Best Scores: {0:.2%}".format(grid_obj.best_score_))
